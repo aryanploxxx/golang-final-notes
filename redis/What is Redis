@@ -1,0 +1,248 @@
+Redis is an open source, in-memory data store
+Uses key-value structures
+Traditionally used as a caching layer
+Data stored in RAM (very fast)
+
+in-memory -> RAM/primary memory -> fast, temporary
+
+redis/redis-stack-server
+-> production, no need
+
+redis/redis-stack
+-> docker run -d --name redis-stack -p 6379:6379 -p 8001:8001 redis/redis-stack:latest
+    -> 6379 - redis server will use it
+    -> 8001 is where we will visualise, the GUI interface for Redis 
+-> docker ps
+-> docker exec d36bcbbe4dbb -it bash
+    -> this will open bash terminal
+    -> write all commands with 'redis-cli' prefix
+       -> redis-cli ping
+       -> if you just type redis-cli, and press enter then you can directly run commands without typing the prefix
+
+Redis provides us with several data-structures out of the box
+
+Normal data in terms of redis is knownn as String
+
+Understanding Redis CLI is important, after that we can implement it with any language.
+
+# Redis Strings
+
+set name aryan
+    -> OK
+get name
+    -> "aryan"
+
+Convection for naming keys in Redis:
+<entity>:<id> value
+
+A redis string can be of length 512MB
+More functions can be applied on strings like SUBSTR, GETRANGE, SETRANGE
+
+We can interact with Redis using NodeJS
+For this we need a package called 'ioredis'
+We first need to create a client that we will use to interact with redis
+
+More details in the redis-playground folder 
+-> This playground wiill automatically query on port 6379, which is the same port number, we had exposed our redis server on
+-> hence it is necessary for a redis server to be already working for the commands to work.
+-> ioredis provides us a way to interact with redis uing nodejs
+
+We can set an expiration time to keys as well
+-> TTL - Time To Life [By default: No Limit]
+
+await client.expire('user:5', 5)
+-> expire this key after 5secs
+
+We have to expire/invalidate data because ultimately, all the changes will happen inside database
+And if data will be always present in the cache, server will never query to the database and search result inside the cache itself and hence will never get fresh data
+
+We can implement expiry, rate limiting etc. using redis 
+
+
+
+# Redis Lists
+
+List is basically an array, and are frequently used to
+-> implement stacks and queues
+-> build queue management for background worker systems
+-> We can insert and remove stuff from a list
+
+LPUSH - adds an element from the left/ to the head of the linkedlist
+RPUSH - adds an element from the right
+LPOP
+RPOP
+LLEN
+LTRIM
+
+Blocking Commands:
+
+BLPOP
+-> BLPOP mesaages 10
+Ideally When we do BLPOP multiple times, it just keeps on popping the elements from the list. When there are no elements in the list, it just returns nil immediately. but in blpop, it behaves same as lpop But when the list is empty We need to provide a timeout. After it stopped. it stops executing completely. It basically waits for the list to get an element and delete it. For example, blpop messages 10. It will wait for 10 seconds if the list is empty and completed execution after 10 seconds. 
+
+If we want to read the data in a list
+-> get messages
+    -> wrong way
+-> LRANGE messages 0 -1
+    -> -1 represents end of string
+    -> this means this will print all key values from 0 to end of array
+
+
+
+# Redis Sets
+-> won't allow inserting duplicate values
+-> unordered collection of unique strings
+-> Used for:    
+    Track unique items (e.g., track all unique IP addresses accessing a given blog post).
+    Represent relations (e.g., the set of all users with a given role).
+    Perform common set operations such as intersection, unions, and differences.
+
+SADD adds a new member to a set.
+
+SADD ip 1
+-> (integer) 1
+
+SADD ip 2
+-> (integer) 1
+
+SADD ip 3
+-> (integer) 1
+
+SADD ip 1
+-> (integer) 0
+
+-> 1 means added, 0 means not added
+-> basically it is the count of the values inserted
+
+SREM removes the specified member from the set.
+-> SREM ip 2
+
+SISMEMBER tests a string for set membership.
+-> SISMEMBER ip 1
+    -> 1 means exists
+    -> 0 means not exists
+
+SINTER returns the set of members that two or more sets have in common (i.e., the intersection).
+
+SCARD returns the size (a.k.a. cardinality) of a set.
+
+
+# Redis Hashes
+Most Redis hash commands are O(1)
+
+# Redis Sorted Sets
+-> can give priority while adding and sort accordingly
+ZADD score 10 aryan
+ZADD score 1 piyush
+ZADD score 4 tejas
+-> on visualisinng, will be a srted set
+-> act like priority queue
+
+
+# Redis Streams
+-> Alternative to Kafka 
+-> a data structure that acts like an append-only log but also implements several operations to overcome some of the limits of a typical append-only log
+-> it has a high throughpuut, we can dump a lot of data here at a very fast rate
+-> Uses:
+    Event sourcing (e.g., tracking user actions, clicks, etc.)
+    Sensor monitoring (e.g., readings from devices in the field)
+    Notifications (e.g., storing a record of each user's notifications in a separate stream)
+-> Can handle a lot of concurrent data as well
+-> It is a append onl log, we can dump a lot of data in it in O(1) complexity 
+
+XADD adds a new entry to a stream.
+XREAD reads one or more entries, starting at a given position and moving forward in time.
+XRANGE returns a range of entries between two supplied entry IDs.
+XLEN returns the length of a stream.
+
+> XADD race:france * rider Castilla speed 30.2 position 1 location_id 1
+"1692632086370-0"
+-> gives a timestamp as output
+-> 0 after the timestamp denotes, concurrent data at a particular timestamp
+-> if there was data coming into redis from another sensor at the same timestamp, so it eould just increase the counter
+
+
+-> For example, if we are tracking the number of clicks of a user, we can store the number of clicks in redis streams
+    and run a cron jobs to read all entries and insert them in the database
+
+const res1 = await client.xAdd(
+  'race:france', '*', {
+    'rider': 'Castilla',
+    'speed': '30.2',
+    'position': '1',
+    'location_id': '1'
+  }
+);
+console.log(res1); // >>> 1700073067968-0 N.B. actual values will differ from these examples
+
+
+# Redis Geospatial
+-> Data like Latitude and Longitude
+-> Redis geospatial indexes let you store coordinates and search for them
+> GEOADD bikes:rentable -122.27652 37.805186 station:1
+(integer) 1
+GEOADD [keyname] [longitude] [latitude] [name_to_display] 
+
+GEOADD adds a location to a given geospatial index (note that longitude comes before latitude with this command).
+GEOSEARCH returns locations with a given radius or a bounding box.
+
+GEOSEARCH bikes:rentable FROMLONLAT -122.2612767 37.7936847 BYRADIUS 5 km WITHDIST
+-> returns the lists of items within 5kms from the current long and lat
+->   1) 1) "station:1"
+        2) "1.8523"
+        2) 1) "station:2"
+        2) "1.4979"
+        3) 1) "station:3"
+        2) "2.2441"
+
+
+# Redis Bitmaps
+
+# Redis Time Series
+-> analysing data on a particular time
+-> Can be used to analyse metrics
+
+# Redis Pub/Sub
+In this weekend publish and subscribe Let's suppose in one terminal we write subscribe messages And in another terminal we write Publish messages hello. Then in the terminal in which we wrote a subscribe hello subscribe messages It would show the message hello printed. 
+We can also subscribe to multiple channels
+We can scale our websockets in microservice architecture using pub/sub model
+
+
+# Redis Workking with NodeJS
+app.get('/', async (req, res) => {
+    const cacheValue = await client.get('todos');
+    if(cacheValue) {
+        console.log('Cache hit');
+        return res.json(JSON.parse(cacheValue));
+        // parse to convert into JSON object, as the data stored in Redis is string
+    }
+    const response = await axios.get('https://jsonplaceholder.typicode.com/todos');
+    await client.set('todos', JSON.stringify(response.data));
+    res.json(response.data);
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
